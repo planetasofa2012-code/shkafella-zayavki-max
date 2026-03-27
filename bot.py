@@ -308,7 +308,7 @@ class MaxBot:
         has_files = any(a.get("type") in ("image", "file", "video") for a in attachments)
 
         # Команды
-        if text.lower() in ("/start", "начать", "/начать"):
+        if text.lower() in ("/start", "start", "начать", "/начать", "привет", "старт"):
             self.clear_state(user_id)
             await self.send_message(chat_id, "Фамилия/название компании")
             self.set_state(user_id, "waiting_company")
@@ -369,7 +369,13 @@ class MaxBot:
             await self.finalize_order(user_id, chat_id, user_name, username)
 
         else:
-            await self.send_message(chat_id, "Напишите /start чтобы начать заявку.")
+            # Нет состояния — автоматически начинаем заявку
+            self.clear_state(user_id)
+            await self.send_message(chat_id,
+                "👋 Добро пожаловать! Начинаем оформление заявки.\n\n"
+                "Фамилия/название компании"
+            )
+            self.set_state(user_id, "waiting_company")
 
     async def process_files(self, user_id, chat_id, attachments):
         """Обработка прикреплённых файлов."""
