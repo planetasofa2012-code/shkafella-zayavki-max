@@ -219,10 +219,12 @@ class MaxBot:
         return await self.send_message(chat_id, text, attachments=attachments)
 
     async def answer_callback(self, callback_id):
-        """Ответ на callback-нажатие кнопки."""
-        url = f"{API_BASE}/answers"
-        payload = {"callback_id": callback_id}
-        async with self.session.post(url, json=payload, headers=self.headers) as resp:
+        """Ответ на callback-нажатие кнопки (callback_id в query params)."""
+        url = f"{API_BASE}/answers?callback_id={callback_id}"
+        async with self.session.post(url, json={}, headers=self.headers) as resp:
+            if resp.status != 200:
+                body = await resp.text()
+                logger.error(f"answer_callback error {resp.status}: {body}")
             return resp.status == 200
 
     async def polling(self):
@@ -259,6 +261,7 @@ class MaxBot:
     async def handle_update(self, update):
         """Маршрутизация обновлений."""
         update_type = update.get("update_type")
+        logger.info(f"UPDATE [{update_type}]: {update}")
 
         if update_type == "message_created":
             message = update.get("message", {})
@@ -266,6 +269,8 @@ class MaxBot:
         elif update_type == "message_callback":
             callback = update.get("callback", {})
             await self.handle_callback(callback)
+        else:
+            logger.warning(f"Неизвестный тип обновления: {update_type}")
 
     # ─── FSM помощники ────────────────────────────────────────
     def get_user_state(self, user_id):
