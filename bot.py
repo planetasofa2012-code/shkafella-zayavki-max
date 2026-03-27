@@ -220,12 +220,16 @@ class MaxBot:
 
     async def answer_callback(self, callback_id):
         """Ответ на callback-нажатие кнопки (callback_id в query params)."""
-        url = f"{API_BASE}/answers?callback_id={callback_id}"
-        async with self.session.post(url, json={}, headers=self.headers) as resp:
-            if resp.status != 200:
+        url = f"{API_BASE}/answers"
+        params = {"callback_id": callback_id}
+        try:
+            async with self.session.post(url, params=params, json={}, headers=self.headers) as resp:
                 body = await resp.text()
-                logger.error(f"answer_callback error {resp.status}: {body}")
-            return resp.status == 200
+                logger.info(f"answer_callback status={resp.status}, body={body[:200]}")
+                return resp.status == 200
+        except Exception as e:
+            logger.error(f"answer_callback exception: {e}")
+            return False
 
     async def polling(self):
         """Long polling для получения обновлений."""
@@ -419,17 +423,24 @@ class MaxBot:
         user_id = callback.get("user", {}).get("user_id")
         chat_id = callback.get("message", {}).get("recipient", {}).get("chat_id")
 
+        logger.info(f"CALLBACK: user_id={user_id}, chat_id={chat_id}, payload={payload}")
+
         if not user_id or not chat_id:
+            logger.warning("CALLBACK: user_id или chat_id не найдены!")
             return
 
         state = self.get_state(user_id)
+        logger.info(f"CALLBACK: текущий state={state}")
 
         if payload.startswith("svc_") and state == "waiting_service":
             svc_index = int(payload.replace("svc_", ""))
             service = SERVICES[svc_index]
             self.update_data(user_id, service=service)
+            logger.info(f"CALLBACK: выбран сервис={service}, отвечаю на callback...")
             await self.answer_callback(callback_id)
-            await self.send_message(chat_id, f"Прикрепите 1-{MAX_FILES} файлов")
+            logger.info(f"CALLBACK: отправляю сообщение про файлы...")
+            result = await self.send_message(chat_id, f"Прикрепите 1-{MAX_FILES} файлов")
+            logger.info(f"CALLBACK: send_message result={result}")
             self.set_state(user_id, "waiting_files")
 
         elif payload == "files_done" and state == "waiting_files":
@@ -443,6 +454,7 @@ class MaxBot:
             )
             self.set_state(user_id, "waiting_comment")
         else:
+            logger.warning(f"CALLBACK: не подошло — payload={payload}, state={state}")
             await self.answer_callback(callback_id)
 
     async def finalize_order(self, user_id, chat_id, user_name, username):
