@@ -220,12 +220,13 @@ class MaxBot:
         }]
         return await self.send_message(chat_id, text, attachments=attachments)
 
-    async def answer_callback(self, callback_id):
+    async def answer_callback(self, callback_id, notification="✔"):
         """Ответ на callback-нажатие кнопки (callback_id в query params)."""
         url = f"{API_BASE}/answers"
         params = {"callback_id": callback_id}
+        body = {"notification": notification}
         try:
-            async with self.session.post(url, params=params, json={}, headers=self.headers) as resp:
+            async with self.session.post(url, params=params, json=body, headers=self.headers) as resp:
                 body = await resp.text()
                 logger.info(f"answer_callback status={resp.status}, body={body[:200]}")
                 return resp.status == 200
