@@ -167,6 +167,8 @@ class MaxBot:
         self.session: aiohttp.ClientSession = None
         # FSM: user_id -> {"state": ..., "data": {...}}
         self.users = {}
+        # Маппинг user_id -> chat_id (для callback)
+        self.user_chats = {}
         self.marker = None
 
     async def start(self):
@@ -271,8 +273,7 @@ class MaxBot:
             message = update.get("message", {})
             await self.handle_message(message)
         elif update_type == "message_callback":
-            callback = update.get("callback", {})
-            await self.handle_callback(callback)
+            await self.handle_callback(update)
         else:
             logger.warning(f"Неизвестный тип обновления: {update_type}")
 
@@ -307,6 +308,9 @@ class MaxBot:
 
         if not user_id or not chat_id:
             return
+
+        # Сохраняем маппинг user_id -> chat_id
+        self.user_chats[user_id] = chat_id
 
         user_name = sender.get("name", "Пользователь")
         username = sender.get("username", "")
@@ -416,12 +420,27 @@ class MaxBot:
             buttons
         )
 
-    async def handle_callback(self, callback):
+    async def handle_callback(self, update):
         """Обработка нажатий кнопок."""
+        callback = update.get("callback", {})
         callback_id = callback.get("callback_id", "")
         payload = callback.get("payload", "")
         user_id = callback.get("user", {}).get("user_id")
-        chat_id = callback.get("message", {}).get("recipient", {}).get("chat_id")
+
+        # chat_id: пробуем несколько источников
+        chat_id = None
+        # 1. Из callback.message.recipient
+        cb_msg = callback.get("message", {})
+        if cb_msg:
+            chat_id = cb_msg.get("recipient", {}).get("chat_id")
+        # 2. Из update.message.recipient
+        if not chat_id:
+            up_msg = update.get("message", {})
+            if up_msg:
+                chat_id = up_msg.get("recipient", {}).get("chat_id")
+        # 3. Из сохранённого маппинга
+        if not chat_id and user_id:
+            chat_id = self.user_chats.get(user_id)
 
         logger.info(f"CALLBACK: user_id={user_id}, chat_id={chat_id}, payload={payload}")
 
