@@ -83,6 +83,18 @@ async def upload_files_to_drive(session: aiohttp.ClientSession, files_data: list
         ).execute()
         subfolder_id = subfolder["id"]
 
+        # Делаем папку доступной всем, у кого есть ссылка (для чтения)
+        try:
+            permission = {"type": "anyone", "role": "reader"}
+            _drive_service.permissions().create(
+                fileId=subfolder_id,
+                body=permission,
+                fields="id"
+            ).execute()
+            logger.info(f"Папка {folder_name} стала доступна по ссылке.")
+        except Exception as perm_err:
+            logger.warning(f"Не удалось выдать права anyone/reader на папку: {perm_err}")
+
         uploaded_files = []
 
         # Загружаем каждый файл
